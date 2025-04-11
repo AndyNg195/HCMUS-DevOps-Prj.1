@@ -18,7 +18,6 @@ pipeline {
                 }
             }
         }
-
         stage('Build & Test') {
             when { expression { env.CHANGED_SERVICES?.trim() } }
             steps {
@@ -29,27 +28,21 @@ pipeline {
                     services.each { service ->
                         parallelBuilds[service] = {
                             dir(service) {
-                                // Run Maven build and tests; ensure your Maven configuration
-                                // generates the jacoco XML report as expected.
+                                // Run Maven build and tests.
                                 sh 'mvn clean verify -pl . -am'
                             }
                         }
                     }
                     parallel parallelBuilds
                     
-                    // Record and enforce code coverage
+                    // Construct a comma-separated pattern for all services.
+                    def patterns = services.collect { "$it/target/site/jacoco.xml" }.join(',')
+                    
+                    // Record code coverage using the integrated coverage plugin.
+                    // Use the correct parser ('JACOCO') and supported parameters.
                     recordCoverage(
-                        // Use the updated parser name (e.g. COVERAGE_JACOCO) required by the integrated coverage plugin.
-                        tools: [[parser: 'COVERAGE_JACOCO']],
-                        sourceFileResolver: [[projectDir: "$WORKSPACE"]],
-                        // Adjust the includes if your Maven setup produces the XML file at target/site/jacoco.xml.
-                        includes: services.collect { "$it/target/site/jacoco.xml" }.join(','),
-                        // Setting thresholds for line coverage: healthy, unstable, and unhealthy percentages are all set to 70%.
-                        thresholds: [
-                            line: [healthy: 70.0, unhealthy: 70.0, unstable: 70.0]
-                        ],
-                        // This option ensures that the build will fail if the recorded coverage is below the threshold.
-                        failBuildIfCoverageIsLow: true
+                        tools: [[ parser: 'JACOCO', pattern: patterns ]],
+                        globalThresholds: [ line: 70 ]
                     )
                 }
             }
