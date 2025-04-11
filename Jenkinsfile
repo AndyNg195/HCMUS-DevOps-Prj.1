@@ -1,110 +1,79 @@
 pipeline {
-    agent any
-    
-    tools {
-        maven 'M3' // Cần cấu hình Maven trong Global Tool Configuration
-        jdk 'jdk17' // Cần cấu hình JDK trong Global Tool Configuration
-    }
-    
-    stages {
-        stage('Checkout & Detect Changes') {
-            steps {
-                checkout scm
-                script {
-                    // Xác định service bị thay đổi
-                    def changes = sh(script: "git diff --name-only HEAD~1", returnStdout: true).trim()
-                    env.CHANGED_SERVICES = getChangedServices(changes)
-                }
-            }
-        }
-        
-        stage('Build Changed Services') {
-            when {
-                expression { return env.CHANGED_SERVICES != 'all' && env.CHANGED_SERVICES != '' }
-            }
-            steps {
-                script {
-                    def services = env.CHANGED_SERVICES.split(',')
-                    services.each { service ->
-                        echo "Building ${service}"
-                        sh "./mvnw clean package -DskipTests -pl :${service} -am"
-                    }
-                }
-            }
-        }
-        
-        stage('Build All') {
-            when {
-                expression { return env.CHANGED_SERVICES == 'all' }
-            }
-            steps {
-                sh './mvnw clean package -DskipTests'
-            }
-        }
-        
-        stage('Test Changed Services') {
-            when {
-                expression { return env.CHANGED_SERVICES != 'all' && env.CHANGED_SERVICES != '' }
-            }
-            steps {
-                script {
-                    def services = env.CHANGED_SERVICES.split(',')
-                    services.each { service ->
-                        echo "Testing ${service}"
-                        sh "./mvnw test -pl :${service}"
-                        junit "**/${service}/target/surefire-reports/*.xml"
-                        jacoco execPattern: "**/${service}/target/jacoco.exec"
-                    }
-                }
-            }
-        }
-        
-        stage('Test All') {
-            when {
-                expression { return env.CHANGED_SERVICES == 'all' }
-            }
-            steps {
-                sh './mvnw test'
-                junit '**/target/surefire-reports/*.xml'
-                jacoco execPattern: '**/target/jacoco.exec'
-            }
-        }
-    }
-    
-    post {
-        always {
-            // Xuất báo cáo JaCoCo
-            jacoco exclusionPattern: '**/target/classes/**',
-            sourceExclusionPattern: '**/src/test/**',
-            sourceInclusionPattern: '**/src/main/**'
-            
-            // Dọn dẹp workspace
-            cleanWs()
-        }
-    }
-}
-
-def getChangedServices(String changes) {
-    if (changes.isEmpty()) {
-        return 'all'
-    }
-    
-    def serviceMap = [
-        'spring-petclinic-api-gateway': 'api-gateway',
-        'spring-petclinic-customers-service': 'customers-service',
-        'spring-petclinic-vets-service': 'vets-service',
-        'spring-petclinic-visits-service': 'visits-service',
-        'spring-petclinic-config-server': 'config-server',
-        'spring-petclinic-discovery-server': 'discovery-server',
-        'spring-petclinic-admin-server': 'admin-server'
-    ]
-    
-    def changedServices = []
-    serviceMap.each { dir, service ->
-        if (changes.contains(dir)) {
-            changedServices.add(service)
-        }
-    }
-    
-    return changedServices.isEmpty() ? 'all' : changedServices.join(',')
-}
+     agent any
+     
+     tools {
+          maven 'M3'
+          jdk 'jdk17'
+      }
+ 
+     stages {
+         stage('Detect Changes') {
+             steps {
+                 script {
+                     def changedFiles = getChangedFiles()
+                     env.CHANGED_SERVICES = changedFiles.collect { 
+                         findServiceDir(it) 
+                     }.unique().join(',')
+                 }
+             }
+         }
+ 
+         stage('Build & Test') {
+             when { expression { env.CHANGED_SERVICES?.trim() } }
+             steps {
+                 script {
+                     def services = env.CHANGED_SERVICES.split(',') as List
+                     def parallelBuilds = [:]
+ 
+                     services.each { service ->
+                         parallelBuilds[service] = {
+                             dir(service) {
+                                 sh 'mvn clean verify -pl . -am'
+                             }
+                         }
+                     }
+                     parallel parallelBuilds
+ 
+                     recordCoverage(
+                         tools: [[parser: 'JACOCO']],
+                         sourceFileResolver: [[projectDir: "$WORKSPACE"]], 
+                         includes: services.collect { "$it/target/site/jacoco/jacoco.xml" }.join(',')
+                     )
+                 }
+             }
+         }
+     }
+ }
+ 
+ // Hàm helper tìm service dir bằng string manipulation và fileExists
+ def findServiceDir(String filePath) {
+     def currentPath = filePath
+     while (true) {
+         // Kiểm tra pom.xml trong thư mục hiện tại
+         if (fileExists("${currentPath}/pom.xml")) {
+             return currentPath
+         }
+         // Di chuyển lên thư mục cha
+         int lastSlash = currentPath.lastIndexOf('/')
+         if (lastSlash == -1) break
+         currentPath = currentPath.substring(0, lastSlash)
+     }
+     // Kiểm tra thư mục gốc
+     if (fileExists("pom.xml")) {
+         return ""
+     }
+     return null
+ }
+ 
+ // Hàm helper lấy danh sách file thay đổi (giữ nguyên)
+ def getChangedFiles() {
+     def changedFiles = []
+     currentBuild.changeSets.each { changeSet ->
+         changeSet.items.each { commit ->
+             commit.affectedFiles.each { file ->
+                 changedFiles.add(file.path)
+             }
+         }
+     }
+     return changedFiles
+ }
