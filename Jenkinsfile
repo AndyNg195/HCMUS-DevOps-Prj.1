@@ -35,20 +35,24 @@ pipeline {
                     }
                     parallel parallelBuilds
                     
-                    // Use a glob pattern to look for any JaCoCo reports in the workspace.
+                    // Record code coverage using a glob that searches all service directories.
+                    // This assumes that each service produces a JaCoCo XML report at target/site/jacoco.xml.
                     recordCoverage(
                         tools: [[ parser: 'JACOCO', pattern: '**/target/site/jacoco.xml' ]]
                     )
                     
-                    // Optionally, add a post-build step to enforce 70% coverage.
-                    // For example, if you want to process one of the XML reports:
-                    def reports = findFiles(glob: '**/target/site/jacoco.xml')
-                    if (reports.size() > 0) {
-                        def reportFile = reports[0].path  // Adjust if you need to aggregate multiple reports.
-                        def coverageData = readFile file: reportFile
+                    // Use the shell to find coverage reports
+                    def reportsOutput = sh(script: "find . -type f -name 'jacoco.xml'", returnStdout: true).trim()
+                    if (reportsOutput) {
+                        def reports = reportsOutput.split("\n")
+                        def reportFile = reports[0].trim()  // You could also iterate or aggregate reports if needed.
+                        echo "Using JaCoCo report: ${reportFile}"
+                        
+                        // Read the JaCoCo XML report
+                        def coverageData = readFile(file: reportFile)
                         def jacocoXml = new XmlSlurper().parseText(coverageData)
                         
-                        // Example: Assuming there's a <counter type="LINE" covered="X" missed="Y" /> element
+                        // Extract line coverage information.
                         def lineCounter = jacocoXml.counter.find { it.@type == 'LINE' }
                         if (lineCounter) {
                             int covered = lineCounter.@covered.toInteger()
@@ -60,7 +64,7 @@ pipeline {
                                 error("Coverage is below threshold: ${coveragePercent}% < 70%")
                             }
                         } else {
-                            echo "No line coverage data found in the report"
+                            echo "No line coverage data found in the report."
                         }
                     } else {
                         echo "No JaCoCo XML reports found!"
