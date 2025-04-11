@@ -35,15 +35,36 @@ pipeline {
                     }
                     parallel parallelBuilds
                     
-                    // Construct a comma-separated pattern for all services.
-                    def patterns = services.collect { "$it/target/site/jacoco.xml" }.join(',')
-                    
-                    // Record code coverage using the integrated coverage plugin.
-                    // Use the correct parser ('JACOCO') and supported parameters.
+                    // Use a glob pattern to look for any JaCoCo reports in the workspace.
                     recordCoverage(
-                        tools: [[ parser: 'JACOCO', pattern: patterns ]],
-                        globalThresholds: [ line: 70 ]
+                        tools: [[ parser: 'JACOCO', pattern: '**/target/site/jacoco.xml' ]]
                     )
+                    
+                    // Optionally, add a post-build step to enforce 70% coverage.
+                    // For example, if you want to process one of the XML reports:
+                    def reports = findFiles(glob: '**/target/site/jacoco.xml')
+                    if (reports.size() > 0) {
+                        def reportFile = reports[0].path  // Adjust if you need to aggregate multiple reports.
+                        def coverageData = readFile file: reportFile
+                        def jacocoXml = new XmlSlurper().parseText(coverageData)
+                        
+                        // Example: Assuming there's a <counter type="LINE" covered="X" missed="Y" /> element
+                        def lineCounter = jacocoXml.counter.find { it.@type == 'LINE' }
+                        if (lineCounter) {
+                            int covered = lineCounter.@covered.toInteger()
+                            int missed = lineCounter.@missed.toInteger()
+                            int total = covered + missed
+                            def coveragePercent = (covered / total * 100).round(2)
+                            echo "Line Coverage: ${coveragePercent}%"
+                            if (coveragePercent < 70.0) {
+                                error("Coverage is below threshold: ${coveragePercent}% < 70%")
+                            }
+                        } else {
+                            echo "No line coverage data found in the report"
+                        }
+                    } else {
+                        echo "No JaCoCo XML reports found!"
+                    }
                 }
             }
         }
