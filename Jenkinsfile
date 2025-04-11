@@ -1,112 +1,86 @@
 pipeline {
     agent any
-    
-    tools {
-        maven 'M3'
-        jdk 'jdk17'
-    }
-    
+
     stages {
-        stage('Checkout & Detect Changes') {
+        stage('Detect Changes') {
             steps {
-                checkout scm
                 script {
-                    def changes = sh(script: "git diff --name-only HEAD~1", returnStdout: true).trim()
-                    env.CHANGED_SERVICES = getChangedServices(changes)
+                    def changedFiles = getChangedFiles()
+                    env.CHANGED_SERVICES = changedFiles.collect { 
+                        // Sử dụng hàm findServiceDir đã sửa đổi
+                        findServiceDir(it) 
+                    }.unique().join(',')
                 }
             }
         }
-        
+
         stage('Build & Test') {
+            when { expression { env.CHANGED_SERVICES?.trim() } }
             steps {
                 script {
-                    if (env.CHANGED_SERVICES == 'all') {
-                        sh './mvnw clean verify'
-                    } else {
-                        def services = env.CHANGED_SERVICES.split(',')
-                        services.each { service ->
-                            sh "./mvnw clean verify -pl :${service} -am"
+                    def services = env.CHANGED_SERVICES.split(',') as List
+                    def parallelBuilds = [:]
+                    
+                    services.each { service ->
+                        parallelBuilds[service] = {
+                            dir(service) {
+                                // Run Maven build and tests; ensure your Maven configuration
+                                // generates the jacoco XML report as expected.
+                                sh 'mvn clean verify -pl . -am'
+                            }
                         }
                     }
-                }
-            }
-        }
-        
-        stage('Coverage Processing') {
-            steps {
-                script {
-                    // Process coverage for multibranch view
-                    def coveragePattern = (env.CHANGED_SERVICES == 'all') ? 
-                        '**/target/site/jacoco/jacoco.xml' : 
-                        env.CHANGED_SERVICES.split(',').collect { 
-                            "**/${it}/target/site/jacoco/jacoco.xml" 
-                        }.join(',')
+                    parallel parallelBuilds
                     
+                    // Record and enforce code coverage
                     recordCoverage(
-                        tools: [[
-                            parser: 'JACOCO',
-                            pattern: coveragePattern
-                        ]],
-                        sourceFileResolver: [
-                            [projectDir: "$WORKSPACE"],
-                            [projectDir: "$WORKSPACE", subDir: "spring-petclinic-*"]
+                        // Use the updated parser name (e.g. COVERAGE_JACOCO) required by the integrated coverage plugin.
+                        tools: [[parser: 'COVERAGE_JACOCO']],
+                        sourceFileResolver: [[projectDir: "$WORKSPACE"]],
+                        // Adjust the includes if your Maven setup produces the XML file at target/site/jacoco.xml.
+                        includes: services.collect { "$it/target/site/jacoco.xml" }.join(','),
+                        // Setting thresholds for line coverage: healthy, unstable, and unhealthy percentages are all set to 70%.
+                        thresholds: [
+                            line: [healthy: 70.0, unhealthy: 70.0, unstable: 70.0]
                         ],
-                        healthyTarget: [
-                            instructionCoverage: 70,
-                            lineCoverage: 70,
-                            branchCoverage: 60
-                        ],
-                        unstableTarget: [
-                            instructionCoverage: 60,
-                            lineCoverage: 60,
-                            branchCoverage: 50
-                        ]
+                        // This option ensures that the build will fail if the recorded coverage is below the threshold.
+                        failBuildIfCoverageIsLow: true
                     )
-                    
-                    // Archive coverage reports as build artifacts instead of using publishHTML
-                    if (env.CHANGED_SERVICES != 'all') {
-                        env.CHANGED_SERVICES.split(',').each { service ->
-                            archiveArtifacts artifacts: "${service}/target/site/jacoco/**/*"
-                        }
-                    } else {
-                        archiveArtifacts artifacts: "target/site/jacoco/**/*"
-                    }
                 }
             }
-        }
-    }
-    
-    post {
-        always {
-            junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
-            cleanWs()
         }
     }
 }
 
-def getChangedServices(String changes) {
-    if (changes.isEmpty() || changes.contains('pom.xml')) {
-        return 'all'
+// Hàm helper tìm service dir bằng string manipulation và fileExists
+def findServiceDir(String filePath) {
+    def currentPath = filePath
+    while (true) {
+        // Kiểm tra pom.xml trong thư mục hiện tại
+        if (fileExists("${currentPath}/pom.xml")) {
+            return currentPath
+        }
+        // Di chuyển lên thư mục cha
+        int lastSlash = currentPath.lastIndexOf('/')
+        if (lastSlash == -1) break
+        currentPath = currentPath.substring(0, lastSlash)
     }
-    
-    def serviceMap = [
-        'spring-petclinic-api-gateway': 'api-gateway',
-        'spring-petclinic-customers-service': 'customers-service',
-        'spring-petclinic-vets-service': 'vets-service',
-        'spring-petclinic-visits-service': 'visits-service',
-        'spring-petclinic-config-server': 'config-server',
-        'spring-petclinic-discovery-server': 'discovery-server',
-        'spring-petclinic-admin-server': 'admin-server'
-    ]
-    
-    def changedServices = []
-    changes.split('\n').each { change ->
-        serviceMap.each { dir, service ->
-            if (change.contains(dir) && !changedServices.contains(service)) {
-                changedServices.add(service)
+    // Kiểm tra thư mục gốc
+    if (fileExists("pom.xml")) {
+        return ""
+    }
+    return null
+}
+
+// Hàm helper lấy danh sách file thay đổi (giữ nguyên)
+def getChangedFiles() {
+    def changedFiles = []
+    currentBuild.changeSets.each { changeSet ->
+        changeSet.items.each { commit ->
+            commit.affectedFiles.each { file ->
+                changedFiles.add(file.path)
             }
         }
     }
-    
-    return changedServices.isEmpty() ? 'all' : changedServices.join(',')
+    return changedFiles
 }
