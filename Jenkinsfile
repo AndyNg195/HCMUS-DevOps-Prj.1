@@ -35,24 +35,24 @@ pipeline {
                     }
                     parallel parallelBuilds
                     
-                    // Record code coverage using a glob that searches all service directories.
-                    // This assumes that each service produces a JaCoCo XML report at target/site/jacoco.xml.
+                    // Record code coverage using the correct file pattern.
                     recordCoverage(
-                        tools: [[ parser: 'JACOCO', pattern: '**/target/site/jacoco.xml' ]]
+                        tools: [[ parser: 'JACOCO', pattern: '**/target/site/jacoco/jacoco.xml' ]]
                     )
                     
-                    // Use the shell to find coverage reports
-                    def reportsOutput = sh(script: "find . -type f -name 'jacoco.xml'", returnStdout: true).trim()
+                    // Use a shell command to locate the JaCoCo XML report.
+                    // The find command is updated to look inside the jacoco directory.
+                    def reportsOutput = sh(script: "find . -type f -path '*/target/site/jacoco/jacoco.xml'", returnStdout: true).trim()
                     if (reportsOutput) {
                         def reports = reportsOutput.split("\n")
-                        def reportFile = reports[0].trim()  // You could also iterate or aggregate reports if needed.
+                        def reportFile = reports[0].trim()  // Use the first found report (adjust as needed).
                         echo "Using JaCoCo report: ${reportFile}"
                         
-                        // Read the JaCoCo XML report
+                        // Read and parse the JaCoCo XML report.
                         def coverageData = readFile(file: reportFile)
                         def jacocoXml = new XmlSlurper().parseText(coverageData)
                         
-                        // Extract line coverage information.
+                        // Extract the counter element for LINE coverage.
                         def lineCounter = jacocoXml.counter.find { it.@type == 'LINE' }
                         if (lineCounter) {
                             int covered = lineCounter.@covered.toInteger()
@@ -72,6 +72,7 @@ pipeline {
                 }
             }
         }
+
     }
 }
 
