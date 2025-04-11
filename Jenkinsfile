@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'M3' // Cần cấu hình Maven trong Global Tool Configuration
+        jdk 'jdk17' // Cần cấu hình JDK trong Global Tool Configuration
+    }
+
     stages {
         stage('Detect Changes') {
             steps {
