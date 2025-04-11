@@ -33,6 +33,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Collections;
+import java.util.Optional;
+
 /**
  * @author Maciej Szarlinski
  */
@@ -58,5 +61,62 @@ class VetResourceTest {
         mvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].id").value(1));
+    }
+
+    
+    @Test
+    void shouldGetMultipleVets() throws Exception {
+        Vet vet1 = new Vet();
+        vet1.setId(1);
+        Vet vet2 = new Vet();
+        vet2.setId(2);
+
+        given(vetRepository.findAll()).willReturn(asList(vet1, vet2));
+
+        mvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(1))
+            .andExpect(jsonPath("$[1].id").value(2))
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void shouldReturnEmptyVetList() throws Exception {
+        given(vetRepository.findAll()).willReturn(Collections.emptyList());
+
+        mvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void shouldReturnVetById() throws Exception {
+        Vet vet = new Vet();
+        vet.setId(1);
+        given(vetRepository.findById(1)).willReturn(Optional.of(vet));
+
+        mvc.perform(get("/vets/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    void shouldReturn404WhenVetNotFound() throws Exception {
+        given(vetRepository.findById(999)).willReturn(Optional.empty());
+        mvc.perform(get("/vets/999"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldGetVetById() throws Exception {
+        Vet vet = new Vet();
+        vet.setId(1);
+        given(vetRepository.findById(1)).willReturn(Optional.of(vet));
+
+        mvc.perform(get("/vets/1").accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1));
     }
 }
