@@ -8,17 +8,6 @@ pipeline {
         BRANCH_NAME = 'main'
     }
 
-    def serviceMap = [
-    'spring-petclinic-api-gateway'       : 'spring-petclinic-api-gateway',
-    'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
-    'spring-petclinic-vets-service'      : 'spring-petclinic-vets-service',
-    'spring-petclinic-visits-service'    : 'spring-petclinic-visits-service',
-    'spring-petclinic-config-server'     : 'spring-petclinic-config-server',
-    'spring-petclinic-discovery-server'  : 'spring-petclinic-discovery-server',
-    'spring-petclinic-admin-server'      : 'spring-petclinic-admin-server'
-    ]
-
-
     stages {
         stage('Checkout') {
             steps {
@@ -47,6 +36,16 @@ pipeline {
                 script {
                     def changedFiles = sh(script: 'git diff --name-only HEAD^ HEAD', returnStdout: true).trim().split('\n')
 
+                    def serviceMap = [
+                        'spring-petclinic-api-gateway'       : 'spring-petclinic-api-gateway',
+                        'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
+                        'spring-petclinic-vets-service'      : 'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service'    : 'spring-petclinic-visits-service',
+                        'spring-petclinic-config-server'     : 'spring-petclinic-config-server',
+                        'spring-petclinic-discovery-server'  : 'spring-petclinic-discovery-server',
+                        'spring-petclinic-admin-server'      : 'spring-petclinic-admin-server'
+                    ]
+
                     def changedServices = []
 
                     serviceMap.each { dir, service ->
@@ -70,6 +69,17 @@ pipeline {
         stage('Build and Push Changed Services') {
             steps {
                 script {
+
+                    def serviceMap = [
+                        'spring-petclinic-api-gateway'       : 'spring-petclinic-api-gateway',
+                        'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
+                        'spring-petclinic-vets-service'      : 'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service'    : 'spring-petclinic-visits-service',
+                        'spring-petclinic-config-server'     : 'spring-petclinic-config-server',
+                        'spring-petclinic-discovery-server'  : 'spring-petclinic-discovery-server',
+                        'spring-petclinic-admin-server'      : 'spring-petclinic-admin-server'
+                    ]
+
                     def changedServices = readJSON file: 'changedServices.json'
 
                     docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS) {
