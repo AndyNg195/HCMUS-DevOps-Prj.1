@@ -143,20 +143,11 @@ pipeline {
                         }
 
                         if(GIT_TAG) {  // Cập nhật tag cho các service trong values.staging.yaml
-                            changedServices.each { svc ->
-                                def fullName = svc.name
-                                def yamlKey = fullName.replace('spring-petclinic-', '')
-                                echo "Updating tag of ${yamlKey} in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
+                            echo "Updating tag of ${yamlKey} in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
 
-                                sh """
-                                    awk -v svc="imageTag: &tag" -v tag="${GIT_TAG}" '
-                                        \$1 == svc { in_block = 1; print; next }
-                                        in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
-                                        { print }
-                                    ' argocd-devops/environments/values.staging.yaml > argocd-devops/environments/values.staging.yaml.tmp && \
-                                    mv argocd-devops/environments/values.staging.yaml.tmp argocd-devops/environments/values.staging.yaml
-                                """
-                            }
+                            sh """
+                                sed -i "s/^imageTag: &tag .*/imageTag: &tag ${GIT_TAG}/" argocd-devops/environments/values.staging.yaml
+                            """
                         }
 
                         // Commit và push
