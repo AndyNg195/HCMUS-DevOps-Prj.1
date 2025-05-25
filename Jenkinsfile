@@ -29,14 +29,13 @@ pipeline {
                     def changedFiles = sh(script: 'git diff --name-only HEAD^ HEAD', returnStdout: true).trim().split('\n')
 
                     def serviceMap = [
-                        'spring-petclinic-api-gateway'       : 'api-gateway',
-                        'spring-petclinic-customers-service' : 'customers-service',
-                        'spring-petclinic-vets-service'      : 'vets-service',
-                        'spring-petclinic-visits-service'    : 'visits-service',
-                        'spring-petclinic-config-server'     : 'config-server',
-                        'spring-petclinic-discovery-server'  : 'discovery-server',
-                        'spring-petclinic-admin-server'      : 'admin-server',
-                        'spring-petclinic-genai-service'     : 'genai-service'
+                        'spring-petclinic-api-gateway'       : 'spring-petclinic-api-gateway',
+                        'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
+                        'spring-petclinic-vets-service'      : 'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service'    : 'spring-petclinic-visits-service',
+                        'spring-petclinic-config-server'     : 'spring-petclinic-config-server',
+                        'spring-petclinic-discovery-server'  : 'spring-petclinic-discovery-server',
+                        'spring-petclinic-admin-server'      : 'spring-petclinic-admin-server'
                     ]
 
                     def changedServices = []
