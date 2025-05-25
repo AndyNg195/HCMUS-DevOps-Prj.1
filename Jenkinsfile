@@ -98,9 +98,8 @@ pipeline {
 
                         // 2) Once all are pushed as latest, tag them all with GIT_TAG
                         if (GIT_TAG) {
-                            echo "Tagging all latest images with ${GIT_TAG}"
-                            for (svc in serviceMap) {
-                                def artifactName = svc.name
+                            echo "Tagging all :latest images with ${GIT_TAG}"
+                            serviceMap.values().each { artifactName ->
                                 sh """
                                 docker pull ${DOCKERHUB_USERNAME}/${artifactName}:latest
                                 docker tag  ${DOCKERHUB_USERNAME}/${artifactName}:latest \
