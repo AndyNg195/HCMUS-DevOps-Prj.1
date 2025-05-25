@@ -90,28 +90,37 @@ pipeline {
                 script {
                     def changedServices = readJSON file: 'changedServices.json'
 
-                    changedServices.each { svc ->
-                        def fullName = svc.name
-                        def yamlKey = fullName.replace('spring-petclinic-', '')
-
-                        echo "Updating tag of ${yamlKey} in values.dev.yaml to ${COMMIT_ID}"
-
-                        sh """
-                            awk -v svc="${yamlKey}:" -v tag="${COMMIT_ID}" '
-                                \$1 == svc { in_block = 1; print; next }
-                                in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
-                                { print }
-                            ' environments/values.dev.yaml > environments/values.dev.yaml.tmp && mv environments/values.dev.yaml.tmp environments/values.dev.yaml
-                        """
-                    }
-
                     withCredentials([usernamePassword(credentialsId: GIT_CREDENTIALS_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
                         sh """
+                            # Clone repo argocd-devops (về thư mục riêng)
+                            rm -rf argocd-devops
+                            git clone https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git
+                        """
+
+                        // Cập nhật tag cho các service trong values.dev.yaml
+                        changedServices.each { svc ->
+                            def fullName = svc.name
+                            def yamlKey = fullName.replace('spring-petclinic-', '')
+                            echo "Updating tag of ${yamlKey} in argocd-devops/environments/values.dev.yaml to ${COMMIT_ID}"
+
+                            sh """
+                                awk -v svc="${yamlKey}:" -v tag="${COMMIT_ID}" '
+                                    \$1 == svc { in_block = 1; print; next }
+                                    in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
+                                    { print }
+                                ' argocd-devops/environments/values.dev.yaml > argocd-devops/environments/values.dev.yaml.tmp && \
+                                mv argocd-devops/environments/values.dev.yaml.tmp argocd-devops/environments/values.dev.yaml
+                            """
+                        }
+
+                        // Commit và push
+                        sh """
+                            cd argocd-devops
                             git config user.name "${GIT_USER}"
                             git config user.email "${GIT_USER}@jenkins"
                             git add environments/values.dev.yaml
-                            git commit -m "Update image tags in values.dev.yaml to ${COMMIT_ID}"
-                            git push https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git ${BRANCH_NAME}
+                            git commit -m "Update image tags to ${COMMIT_ID} by Jenkins"
+                            git push https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git
                         """
                     }
                 }
