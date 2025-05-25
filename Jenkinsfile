@@ -101,7 +101,7 @@ pipeline {
                                 \$1 == svc { in_block = 1; print; next }
                                 in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
                                 { print }
-                            ' environment/values.dev.yaml > environment/values.dev.yaml.tmp && mv environment/values.dev.yaml.tmp environment/values.dev.yaml
+                            ' environments/values.dev.yaml > environments/values.dev.yaml.tmp && mv environments/values.dev.yaml.tmp environments/values.dev.yaml
                         """
                     }
 
@@ -109,7 +109,7 @@ pipeline {
                         sh """
                             git config user.name "${GIT_USER}"
                             git config user.email "${GIT_USER}@jenkins"
-                            git add environment/values.dev.yaml
+                            git add environments/values.dev.yaml
                             git commit -m "Update image tags in values.dev.yaml to ${COMMIT_ID}"
                             git push https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git ${BRANCH_NAME}
                         """
