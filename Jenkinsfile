@@ -72,24 +72,41 @@ pipeline {
                     def changedServices = readJSON file: 'changedServices.json'
 
                     docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS) {
+                        // 1) Build & push COMMIT_ID and latest
                         for (svc in changedServices) {
-                            def dir = svc.dir
+                            def dir          = svc.dir
                             def artifactName = svc.name
 
                             echo "Building service: ${dir}"
-
                             sh "./mvnw -pl ${dir} -am clean package -DskipTests"
                             sh "cp ${dir}/target/*.jar docker/${artifactName}.jar"
 
-                            def image = docker.build("${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID}", "--build-arg ARTIFACT_NAME=${artifactName} docker/")
-
+                            // build with COMMIT_ID tag
+                            def image = docker.build(
+                                "${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID}",
+                                "--build-arg ARTIFACT_NAME=${artifactName} docker/"
+                            )
                             image.push()
-                            sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:latest"
-                            sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:latest"
 
-                            if (GIT_TAG) {
-                                sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:${GIT_TAG}"
-                                sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:${GIT_TAG}"
+                            // retag to latest and push
+                            sh """
+                                docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} \
+                                        ${DOCKERHUB_USERNAME}/${artifactName}:latest
+                                docker push ${DOCKERHUB_USERNAME}/${artifactName}:latest
+                            """
+                        }
+
+                        // 2) Once all are pushed as latest, tag them all with GIT_TAG
+                        if (GIT_TAG) {
+                            echo "Tagging all latest images with ${GIT_TAG}"
+                            for (svc in serviceMap) {
+                                def artifactName = svc.name
+                                sh """
+                                docker pull ${DOCKERHUB_USERNAME}/${artifactName}:latest
+                                docker tag  ${DOCKERHUB_USERNAME}/${artifactName}:latest \
+                                            ${DOCKERHUB_USERNAME}/${artifactName}:${GIT_TAG}
+                                docker push ${DOCKERHUB_USERNAME}/${artifactName}:${GIT_TAG}
+                                """
                             }
                         }
                     }
@@ -132,7 +149,7 @@ pipeline {
                                 echo "Updating tag of ${yamlKey} in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
 
                                 sh """
-                                    awk -v svc="${yamlKey}:" -v tag="${GIT_TAG}" '
+                                    awk -v svc="imageTag: &tag" -v tag="${GIT_TAG}" '
                                         \$1 == svc { in_block = 1; print; next }
                                         in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
                                         { print }
