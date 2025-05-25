@@ -153,7 +153,7 @@ pipeline {
                         }
 
                         if(GIT_TAG) {  // Cập nhật tag cho các service trong values.staging.yaml
-                            echo "Updating tag of ${yamlKey} in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
+                            echo "Updating tag in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
 
                             sh """
                                 sed -i "s/^imageTag: &tag .*/imageTag: &tag ${GIT_TAG}/" argocd-devops/environments/values.staging.yaml
