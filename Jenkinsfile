@@ -27,7 +27,6 @@ pipeline {
         stage('Detect Changed Services') {
             steps {
                 script {
-                    // So sánh với commit cha gần nhất (bất kể nhánh nào)
                     def changedFiles = sh(script: 'git diff --name-only HEAD^ HEAD', returnStdout: true).trim().split('\n')
 
                     def serviceMap = [
@@ -51,11 +50,9 @@ pipeline {
                     if (changedServices.isEmpty()) {
                         echo "No relevant service changed in this commit. Skipping build and push."
                         currentBuild.result = 'SUCCESS'
-                        // Dừng pipeline
                         return
                     }
 
-                    // Ghi lại services bị thay đổi để dùng trong bước sau
                     writeFile file: 'changedServices.json', text: groovy.json.JsonOutput.toJson(changedServices)
                     echo "Changed services: ${changedServices.collect { it.dir }.join(', ')}"
                 }
@@ -74,18 +71,12 @@ pipeline {
 
                             echo "Building service: ${dir}"
 
-                            // Build JAR
                             sh "./mvnw -pl ${dir} -am clean package -DskipTests"
-
-                            // Copy JAR vào thư mục docker để build
                             sh "cp ${dir}/target/*.jar docker/${artifactName}.jar"
 
                             def image = docker.build("${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID}", "--build-arg ARTIFACT_NAME=${artifactName} docker/")
 
-                            // Push tag theo commit
                             image.push()
-
-                            // Push thêm tag latest
                             sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:latest"
                             sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:latest"
                         }
@@ -93,16 +84,15 @@ pipeline {
                 }
             }
         }
-    }
 
-    stage('Update values.dev.yaml and Push to GitHub') {
+        stage('Update values.dev.yaml and Push to GitHub') {
             steps {
                 script {
                     def changedServices = readJSON file: 'changedServices.json'
 
                     changedServices.each { svc ->
-                        def fullName = svc.name                         // ví dụ: spring-petclinic-vets-service
-                        def yamlKey = fullName.replace('spring-petclinic-', '')  // ví dụ: vets-service
+                        def fullName = svc.name
+                        def yamlKey = fullName.replace('spring-petclinic-', '')
 
                         echo "Updating tag of ${yamlKey} in values.dev.yaml to ${COMMIT_ID}"
 
@@ -113,10 +103,8 @@ pipeline {
                                 { print }
                             ' environment/values.dev.yaml > environment/values.dev.yaml.tmp && mv environment/values.dev.yaml.tmp environment/values.dev.yaml
                         """
-                }
+                    }
 
-
-                    // Cấu hình Git để commit và push
                     withCredentials([usernamePassword(credentialsId: GIT_CREDENTIALS_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
                         sh """
                             git config user.name "${GIT_USER}"
