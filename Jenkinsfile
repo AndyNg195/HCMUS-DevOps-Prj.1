@@ -4,6 +4,8 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = 'dockerhub-credentials'
         DOCKERHUB_USERNAME = 'andyng195'
+        GIT_CREDENTIALS_ID = 'github-credentials'
+        BRANCH_NAME = 'main'
     }
 
     stages {
@@ -87,6 +89,42 @@ pipeline {
                             sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:latest"
                             sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:latest"
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    stage('Update values.dev.yaml and Push to GitHub') {
+            steps {
+                script {
+                    def changedServices = readJSON file: 'changedServices.json'
+
+                    changedServices.each { svc ->
+                        def fullName = svc.name                         // ví dụ: spring-petclinic-vets-service
+                        def yamlKey = fullName.replace('spring-petclinic-', '')  // ví dụ: vets-service
+
+                        echo "Updating tag of ${yamlKey} in values.dev.yaml to ${COMMIT_ID}"
+
+                        sh """
+                            awk -v svc="${yamlKey}:" -v tag="${COMMIT_ID}" '
+                                \$1 == svc { in_block = 1; print; next }
+                                in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
+                                { print }
+                            ' environment/values.dev.yaml > environment/values.dev.yaml.tmp && mv environment/values.dev.yaml.tmp environment/values.dev.yaml
+                        """
+                }
+
+
+                    // Cấu hình Git để commit và push
+                    withCredentials([usernamePassword(credentialsId: GIT_CREDENTIALS_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        sh """
+                            git config user.name "${GIT_USER}"
+                            git config user.email "${GIT_USER}@jenkins"
+                            git add environment/values.dev.yaml
+                            git commit -m "Update image tags in values.dev.yaml to ${COMMIT_ID}"
+                            git push https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git ${BRANCH_NAME}
+                        """
                     }
                 }
             }
