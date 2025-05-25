@@ -8,6 +8,17 @@ pipeline {
         BRANCH_NAME = 'main'
     }
 
+    def serviceMap = [
+    'spring-petclinic-api-gateway'       : 'spring-petclinic-api-gateway',
+    'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
+    'spring-petclinic-vets-service'      : 'spring-petclinic-vets-service',
+    'spring-petclinic-visits-service'    : 'spring-petclinic-visits-service',
+    'spring-petclinic-config-server'     : 'spring-petclinic-config-server',
+    'spring-petclinic-discovery-server'  : 'spring-petclinic-discovery-server',
+    'spring-petclinic-admin-server'      : 'spring-petclinic-admin-server'
+    ]
+
+
     stages {
         stage('Checkout') {
             steps {
@@ -35,16 +46,6 @@ pipeline {
             steps {
                 script {
                     def changedFiles = sh(script: 'git diff --name-only HEAD^ HEAD', returnStdout: true).trim().split('\n')
-
-                    def serviceMap = [
-                        'spring-petclinic-api-gateway'       : 'spring-petclinic-api-gateway',
-                        'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
-                        'spring-petclinic-vets-service'      : 'spring-petclinic-vets-service',
-                        'spring-petclinic-visits-service'    : 'spring-petclinic-visits-service',
-                        'spring-petclinic-config-server'     : 'spring-petclinic-config-server',
-                        'spring-petclinic-discovery-server'  : 'spring-petclinic-discovery-server',
-                        'spring-petclinic-admin-server'      : 'spring-petclinic-admin-server'
-                    ]
 
                     def changedServices = []
 
