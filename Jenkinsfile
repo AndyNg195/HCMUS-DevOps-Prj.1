@@ -157,7 +157,9 @@ pipeline {
                             echo "Updating tag in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
 
                             sh """
+                                cat argocd-devops/environments/values.staging.yaml 
                                 sed -i 's|^imageTag: &tag .*|imageTag: \\&tag ${GIT_TAG}|' argocd-devops/environments/values.staging.yaml
+                                cat argocd-devops/environments/values.staging.yaml
                             """
                         }
 
