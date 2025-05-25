@@ -168,7 +168,7 @@ pipeline {
                             cd argocd-devops
                             git config user.name Jenkins
                             git config user.email email@jenkins
-                            git add environments/values.dev.yaml
+                            git add environments
                             git commit -m "Update image tags to ${COMMIT_ID} by Jenkins"
                             git push https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git
                         """
