@@ -15,11 +15,18 @@ pipeline {
             }
         }
 
-        stage('Get Commit ID') {
+        stage('Get Commit ID and Git Tag (if any)') {
             steps {
                 script {
                     COMMIT_ID = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     echo "Commit ID: ${COMMIT_ID}"
+
+                    GIT_TAG = sh(script: 'git describe --tags --exact-match || echo ""', returnStdout: true).trim()
+                    if (GIT_TAG) {
+                        echo "Git tag detected: ${GIT_TAG}"
+                    } else {
+                        echo "No Git tag found for this commit."
+                    }
                 }
             }
         }
@@ -79,13 +86,18 @@ pipeline {
                             image.push()
                             sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:latest"
                             sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:latest"
+
+                            if (GIT_TAG) {
+                                sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:${GIT_TAG}"
+                                sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:${GIT_TAG}"
+                            }
                         }
                     }
                 }
             }
         }
 
-        stage('Update values.dev.yaml and Push to GitHub') {
+        stage('Update values.dev.yaml, values.staging.yaml and Push to GitHub') {
             steps {
                 script {
                     def changedServices = readJSON file: 'changedServices.json'
@@ -96,7 +108,7 @@ pipeline {
                             rm -rf argocd-devops
                             git clone https://${GIT_USER}:${GIT_PASS}@github.com/andyng195/argocd-devops.git
                         """
-
+                        
                         // Cập nhật tag cho các service trong values.dev.yaml
                         changedServices.each { svc ->
                             def fullName = svc.name
@@ -111,6 +123,23 @@ pipeline {
                                 ' argocd-devops/environments/values.dev.yaml > argocd-devops/environments/values.dev.yaml.tmp && \
                                 mv argocd-devops/environments/values.dev.yaml.tmp argocd-devops/environments/values.dev.yaml
                             """
+                        }
+
+                        if(GIT_TAG) {  // Cập nhật tag cho các service trong values.staging.yaml
+                            changedServices.each { svc ->
+                                def fullName = svc.name
+                                def yamlKey = fullName.replace('spring-petclinic-', '')
+                                echo "Updating tag of ${yamlKey} in argocd-devops/environments/values.staging.yaml to ${GIT_TAG}"
+
+                                sh """
+                                    awk -v svc="${yamlKey}:" -v tag="${GIT_TAG}" '
+                                        \$1 == svc { in_block = 1; print; next }
+                                        in_block && /tag:/ { sub(/tag: .*/, "tag: " tag); in_block = 0 }
+                                        { print }
+                                    ' argocd-devops/environments/values.staging.yaml > argocd-devops/environments/values.staging.yaml.tmp && \
+                                    mv argocd-devops/environments/values.staging.yaml.tmp argocd-devops/environments/values.staging.yaml
+                                """
+                            }
                         }
 
                         // Commit và push
@@ -130,7 +159,7 @@ pipeline {
 
     post {
         success {
-            echo "Changed services built and pushed successfully with tag ${COMMIT_ID}."
+            echo "Changed services built and pushed successfully."
         }
         failure {
             echo "Build failed!"
