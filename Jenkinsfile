@@ -22,40 +22,70 @@ pipeline {
             }
         }
 
-        stage('Build and Push All Services') {
+        stage('Detect Changed Services') {
             steps {
                 script {
-                    def services = [
-                        'spring-petclinic-vets-service',
-                        'spring-petclinic-visits-service',
-                        'spring-petclinic-customers-service',
-                        'spring-petclinic-api-gateway',
-                        'spring-petclinic-discovery-server',
-                        'spring-petclinic-config-server',
-                        'spring-petclinic-admin-server',
-                        'spring-petclinic-genai-service'
-                        
+                    // So sánh với commit cha gần nhất (bất kể nhánh nào)
+                    def changedFiles = sh(script: 'git diff --name-only HEAD^ HEAD', returnStdout: true).trim().split('\n')
+
+                    def serviceMap = [
+                        'spring-petclinic-api-gateway'       : 'api-gateway',
+                        'spring-petclinic-customers-service' : 'customers-service',
+                        'spring-petclinic-vets-service'      : 'vets-service',
+                        'spring-petclinic-visits-service'    : 'visits-service',
+                        'spring-petclinic-config-server'     : 'config-server',
+                        'spring-petclinic-discovery-server'  : 'discovery-server',
+                        'spring-petclinic-admin-server'      : 'admin-server',
+                        'spring-petclinic-genai-service'     : 'genai-service'
                     ]
 
+                    def changedServices = []
+
+                    serviceMap.each { dir, service ->
+                        if (changedFiles.any { it.startsWith(dir + '/') }) {
+                            changedServices.add([dir: dir, name: service])
+                        }
+                    }
+
+                    if (changedServices.isEmpty()) {
+                        echo "No relevant service changed in this commit. Skipping build and push."
+                        currentBuild.result = 'SUCCESS'
+                        // Dừng pipeline
+                        return
+                    }
+
+                    // Ghi lại services bị thay đổi để dùng trong bước sau
+                    writeFile file: 'changedServices.json', text: groovy.json.JsonOutput.toJson(changedServices)
+                    echo "Changed services: ${changedServices.collect { it.dir }.join(', ')}"
+                }
+            }
+        }
+
+        stage('Build and Push Changed Services') {
+            steps {
+                script {
+                    def changedServices = readJSON file: 'changedServices.json'
+
                     docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS) {
-                        for (service in services) {
-                            echo "📦 Building service: ${service}"
+                        for (svc in changedServices) {
+                            def dir = svc.dir
+                            def artifactName = svc.name
 
-                            def artifactName = service
-                            def jarPath = "${service}/target/${artifactName}.jar"
+                            echo "Building service: ${dir}"
 
-                            sh "./mvnw -pl ${service} -am clean package -DskipTests"
+                            // Build JAR
+                            sh "./mvnw -pl ${dir} -am clean package -DskipTests"
 
-                            sh "cp ${service}/target/*.jar docker/${artifactName}.jar"
+                            // Copy JAR vào thư mục docker để build
+                            sh "cp ${dir}/target/*.jar docker/${artifactName}.jar"
 
-                            def dockerImage = docker.build("${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID}", "--build-arg ARTIFACT_NAME=${artifactName} docker/")
+                            def image = docker.build("${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID}", "--build-arg ARTIFACT_NAME=${artifactName} docker/")
 
-                            dockerImage.push()
-                            
-                            // Gắn thêm tag 'latest' cho image vừa build
+                            // Push tag theo commit
+                            image.push()
+
+                            // Push thêm tag latest
                             sh "docker tag ${DOCKERHUB_USERNAME}/${artifactName}:${COMMIT_ID} ${DOCKERHUB_USERNAME}/${artifactName}:latest"
-
-                            // Push tag 'latest'
                             sh "docker push ${DOCKERHUB_USERNAME}/${artifactName}:latest"
                         }
                     }
@@ -66,7 +96,7 @@ pipeline {
 
     post {
         success {
-            echo "All images built and pushed successfully with tag ${COMMIT_ID}."
+            echo "Changed services built and pushed successfully with tag ${COMMIT_ID}."
         }
         failure {
             echo "Build failed!"
