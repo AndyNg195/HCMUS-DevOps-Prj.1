@@ -54,7 +54,7 @@ pipeline {
                         }
                     }
 
-                    if (changedServices.isEmpty()) {
+                    if (changedServices.isEmpty() && !GIT_TAG) {
                         echo "No relevant service changed in this commit. Skipping build and push."
                         currentBuild.result = 'SUCCESS'
                         return
