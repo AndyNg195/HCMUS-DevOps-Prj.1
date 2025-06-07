@@ -18,6 +18,8 @@ package org.springframework.samples.petclinic.vets.web;
 import java.util.List;
 
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.samples.petclinic.vets.model.Vet;
 import org.springframework.samples.petclinic.vets.model.VetRepository;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,5 +47,11 @@ class VetResource {
     @Cacheable("vets")
     public List<Vet> showResourcesVetList() {
         return vetRepository.findAll();
+    }
+
+    @GetMapping("/test-error")
+    public ResponseEntity<String> throwError() {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body("Simulated 500 error");
     }
 }
