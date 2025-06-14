@@ -27,3 +27,5 @@ management:
     export:
       prometheus:
         enabled: true
+        exemplars:
+          enabled: true
