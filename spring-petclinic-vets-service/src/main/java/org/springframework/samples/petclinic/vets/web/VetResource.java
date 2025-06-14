@@ -17,6 +17,8 @@ package org.springframework.samples.petclinic.vets.web;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +41,8 @@ class VetResource {
 
     private final VetRepository vetRepository;
 
+    private static final Logger log = LoggerFactory.getLogger(VetResource.class);
+
     VetResource(VetRepository vetRepository) {
         this.vetRepository = vetRepository;
     }
@@ -51,6 +55,7 @@ class VetResource {
 
     @GetMapping("/test-error")
     public ResponseEntity<String> throwError() {
+        log.error("Endpoint /vets/test-error was called, returning 500 error");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body("Simulated 500 error");
     }
