@@ -29,3 +29,8 @@ management:
         enabled: true
         exemplars:
           enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true  # Bật histogram cho metric này
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99  # (tuỳ chọn) các percentiles muốn ghi nhận
