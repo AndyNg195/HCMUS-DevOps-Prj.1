@@ -69,7 +69,7 @@ pipeline {
                         echo "Testing ${service}"
                         sh "./mvnw test -pl :${service}"
                         junit "**/${service}/target/surefire-reports/*.xml"
-                        jacoco execPattern: "**/${service}/target/jacoco.exec"
+                        // jacoco execPattern: "**/${service}/target/jacoco.exec"
                     }
                 }
             }
@@ -106,14 +106,14 @@ pipeline {
                         ]
                     )
 
-                    publishHTML(
-                        target: [
-                            reportDir: 'target/site/jacoco-aggregate',
-                            reportFiles: 'index.html',
-                            reportName: 'JaCoCo Coverage Report',
-                            keepAll: true
-                        ]
-                    )
+                    // publishHTML(
+                    //     target: [
+                    //         reportDir: 'target/site/jacoco-aggregate',
+                    //         reportFiles: 'index.html',
+                    //         reportName: 'JaCoCo Coverage Report',
+                    //         keepAll: true
+                    //     ]
+                    // )
                 }
             }
             // cleanWs()
