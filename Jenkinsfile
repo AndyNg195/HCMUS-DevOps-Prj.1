@@ -28,8 +28,8 @@ pipeline {
 
                     if (env.CHANGE_TARGET) {
                         // Pull request build using merge strategy
-                        echo "Detected PR build to '${env.CHANGE_TARGET}'. Comparing HEAD^2 (PR head) with HEAD (merged result)."
-                        def diffOutput = sh(script: "git diff --name-only HEAD^2 HEAD", returnStdout: true).trim()
+                        echo "Detected PR build to '${env.CHANGE_TARGET}'. Comparing HEAD~2 (PR head) with HEAD (merged result)."
+                        def diffOutput = sh(script: "git diff --name-only HEAD~2 HEAD", returnStdout: true).trim()
                         changeFiles = diffOutput ? diffOutput.split("\n").collect { it.trim() } : []
                     } else {
                         // Normal push build
