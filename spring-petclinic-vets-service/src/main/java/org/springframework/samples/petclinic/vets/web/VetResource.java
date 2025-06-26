@@ -16,7 +16,6 @@
 package org.springframework.samples.petclinic.vets.web;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.samples.petclinic.vets.model.Vet;
@@ -24,9 +23,6 @@ import org.springframework.samples.petclinic.vets.model.VetRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
 
 /**
  * @author Juergen Hoeller
@@ -49,11 +45,5 @@ class VetResource {
     @Cacheable("vets")
     public List<Vet> showResourcesVetList() {
         return vetRepository.findAll();
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<Vet> getVetById(@PathVariable int id) {
-        Optional<Vet> vet = vetRepository.findById(id);
-        return vet.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 }
