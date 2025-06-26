@@ -32,9 +32,9 @@ pipeline {
                         def diffOutput = sh(script: "git diff --name-only HEAD~2 HEAD", returnStdout: true).trim()
                         changeFiles = diffOutput ? diffOutput.split("\n").collect { it.trim() } : []
                     } else {
-                        // Normal push build
-                        echo "Detected branch push to '${env.BRANCH_NAME}'. Comparing origin/${targetBranch} with HEAD~1."
-                        def diffOutput = sh(script: "git diff --name-only origin/${targetBranch}...HEAD~1", returnStdout: true).trim()
+                        // Normal push to a branch
+                        echo "Detected branch push to '${env.BRANCH_NAME}'. Comparing previous commit (HEAD~1) with current (HEAD)."
+                        def diffOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                         changeFiles = diffOutput ? diffOutput.split("\n").collect { it.trim() } : []
                     }
 
