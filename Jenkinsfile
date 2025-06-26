@@ -146,6 +146,7 @@ def getChangedServices(String changes) {
 
     def changedServices = []
     changes.split('\n').each { change ->
+        change = change.trim()
         serviceMap.each { dir, service ->
             if (change.contains(dir) && !changedServices.contains(service)) {
                 changedServices.add(service)
