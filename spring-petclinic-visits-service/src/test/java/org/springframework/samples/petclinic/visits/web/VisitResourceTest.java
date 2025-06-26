@@ -17,6 +17,16 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.springframework.http.MediaType;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
 
 @ExtendWith(SpringExtension.class)
 @WebMvcTest(VisitResource.class)
@@ -57,5 +67,66 @@ class VisitResourceTest {
             .andExpect(jsonPath("$.items[0].petId").value(111))
             .andExpect(jsonPath("$.items[1].petId").value(222))
             .andExpect(jsonPath("$.items[2].petId").value(222));
+    }
+
+    @Test
+    void shouldCreateVisitSuccessfully() throws Exception {
+        Visit visit = new Visit();
+        visit.setDescription("Regular check-up");
+
+        when(visitRepository.save(any(Visit.class))).thenReturn(visit);
+
+        mvc.perform(post("/owners/*/pets/1/visits")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"description\": \"Regular check-up\"}"))
+                .andExpect(status().isCreated());
+
+        verify(visitRepository, times(1)).save(any(Visit.class));
+    }
+
+    @Test
+    void shouldFetchVisitsForPetId() throws Exception {
+        Visit visit = new Visit();
+        visit.setId(1);
+        visit.setPetId(1);
+        visit.setDescription("Regular check-up");
+
+        when(visitRepository.findByPetId(1)).thenReturn(Collections.singletonList(visit));
+
+        mvc.perform(get("/owners/*/pets/1/visits"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].description").value("Regular check-up"));
+    }
+
+    @Test
+    void shouldReturnEmptyListWhenNoVisitsForPetId() throws Exception {
+        when(visitRepository.findByPetId(1)).thenReturn(Collections.emptyList());
+
+        mvc.perform(get("/owners/*/pets/1/visits"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void shouldFetchVisitsForMultiplePetIds() throws Exception {
+        Visit visit1 = new Visit();
+        visit1.setId(1);
+        visit1.setPetId(1);
+        visit1.setDescription("Visit 1");
+
+        Visit visit2 = new Visit();
+        visit2.setId(2);
+        visit2.setPetId(2);
+        visit2.setDescription("Visit 2");
+
+        List<Integer> petIds = Arrays.asList(1, 2);
+
+        when(visitRepository.findByPetIdIn(petIds)).thenReturn(Arrays.asList(visit1, visit2));
+
+        mvc.perform(get("/pets/visits?petId=1,2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(1))
+                .andExpect(jsonPath("$.items[1].id").value(2));
     }
 }
