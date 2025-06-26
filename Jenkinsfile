@@ -154,8 +154,6 @@ def getChangedServices(String changes) {
         }
     }
 
-    echo changedServices
-
     if (changes.contains('pom.xml') || changes.contains('Jenkinsfile')) {
         return 'all'
     }
