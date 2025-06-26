@@ -116,17 +116,17 @@ pipeline {
                         ]
                     )
 
-                    publishHTML(
-                        target: [
-                            reportDir: 'target/site/jacoco-aggregate',
-                            reportFiles: 'index.html',
-                            reportName: 'JaCoCo Coverage Report',
-                            keepAll: true
-                        ]
-                    )
+                    // publishHTML(
+                    //     target: [
+                    //         reportDir: 'target/site/jacoco-aggregate',
+                    //         reportFiles: 'index.html',
+                    //         reportName: 'JaCoCo Coverage Report',
+                    //         keepAll: true
+                    //     ]
+                    // )
                 }
             }
-            cleanWs()
+            // cleanWs()
         }
     }
 }
