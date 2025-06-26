@@ -29,8 +29,9 @@ pipeline {
                     echo "Changed services: ${changedServices}"
 
                     if (changedServices.isEmpty()) {
+                        skipBuild = true
                         currentBuild.result = 'NOT_BUILT'
-                        error "No changes detected in any services - skipping build"
+                        echo "No changes detected - skipping build and test stages"
                     }
                 }
             }
