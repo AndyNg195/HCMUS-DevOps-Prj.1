@@ -12,15 +12,30 @@ pipeline {
     stages {
         stage('Checkout & Detect Changes') {
             steps {
-                checkout scm
                 script {
-                    // Collect changed file paths
-                    for (changeLog in currentBuild.changeSets) {
-                        for (entry in changeLog.items) {
-                            for (file in entry.affectedFiles) {
-                                changeFiles << file.path.trim()
-                            }
-                        }
+                    // Full-depth checkout
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: scm.branches,
+                        userRemoteConfigs: scm.userRemoteConfigs,
+                        extensions: [
+                            [$class: 'CloneOption', shallow: false, depth: 0]
+                        ]
+                    ])
+
+                    def targetBranch = env.CHANGE_TARGET ?: env.BRANCH_NAME
+                    sh "git fetch origin ${targetBranch}"
+
+                    if (env.CHANGE_TARGET) {
+                        // Pull request build using merge strategy
+                        echo "Detected PR build to '${env.CHANGE_TARGET}'. Comparing HEAD~2 (PR head) with HEAD (merged result)."
+                        def diffOutput = sh(script: "git diff --name-only HEAD~2 HEAD", returnStdout: true).trim()
+                        changeFiles = diffOutput ? diffOutput.split("\n").collect { it.trim() } : []
+                    } else {
+                        // Normal push to a branch
+                        echo "Detected branch push to '${env.BRANCH_NAME}'. Comparing previous commit (HEAD~1) with current (HEAD)."
+                        def diffOutput = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
+                        changeFiles = diffOutput ? diffOutput.split("\n").collect { it.trim() } : []
                     }
 
                     echo "Changed files:\n${changeFiles.join('\n')}"
@@ -70,7 +85,6 @@ pipeline {
                         echo "Testing ${service}"
                         sh "./mvnw test -pl :${service}"
                         junit "**/${service}/target/surefire-reports/*.xml"
-                        // jacoco execPattern: "**/${service}/target/jacoco.exec"
                     }
                 }
             }
@@ -83,7 +97,6 @@ pipeline {
             steps {
                 sh './mvnw test'
                 junit '**/target/surefire-reports/*.xml'
-                // jacoco execPattern: '**/target/jacoco.exec'
             }
         }
     }
@@ -106,18 +119,8 @@ pipeline {
                             [projectDir: "$WORKSPACE"]
                         ]
                     )
-
-                    // publishHTML(
-                    //     target: [
-                    //         reportDir: 'target/site/jacoco-aggregate',
-                    //         reportFiles: 'index.html',
-                    //         reportName: 'JaCoCo Coverage Report',
-                    //         keepAll: true
-                    //     ]
-                    // )
                 }
             }
-            // cleanWs()
         }
     }
 }
@@ -144,8 +147,7 @@ def getChangedServices(List changes) {
     }
 
     if (changes.any { it.contains('pom.xml') || it.contains('Jenkinsfile') }) {
-        // Special case: full build
-        return ['ALL']
+        return ['ALL'] // trigger full build
     }
 
     return services
