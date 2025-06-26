@@ -1,6 +1,5 @@
-// Global variables for changes
-def changedServices = 'none'
 def changeFiles = []
+def changedServices = []
 
 pipeline {
     agent any
@@ -15,24 +14,21 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    // Extract changed files from SCM
+                    // Collect changed file paths
                     for (changeLog in currentBuild.changeSets) {
                         for (entry in changeLog.items) {
                             for (file in entry.affectedFiles) {
-                                def filePath = file.path.trim()
-                                changeFiles.add(filePath)
+                                changeFiles << file.path.trim()
                             }
                         }
                     }
 
-                    echo "Detected changed files:\n${changeFiles.join('\n')}"
+                    echo "Changed files:\n${changeFiles.join('\n')}"
 
-                    // Determine which services changed
                     changedServices = getChangedServices(changeFiles)
-                    echo "Detected changed services: ${changedServices}"
+                    echo "Changed services: ${changedServices}"
 
-                    // Stop early if no changes detected
-                    if (changedServices == 'none') {
+                    if (changedServices.isEmpty()) {
                         currentBuild.result = 'NOT_BUILT'
                         error "No changes detected in any services - skipping build"
                     }
@@ -42,12 +38,11 @@ pipeline {
 
         stage('Build Changed Services') {
             when {
-                expression { return changedServices != 'all' && changedServices != 'none' }
+                expression { return !isFullBuild(changedServices) && !changedServices.isEmpty() }
             }
             steps {
                 script {
-                    def services = changedServices.split(',')
-                    services.each { service ->
+                    changedServices.each { service ->
                         echo "Building ${service}"
                         sh "./mvnw clean package -DskipTests -pl ${service} -am"
                     }
@@ -57,7 +52,7 @@ pipeline {
 
         stage('Build All') {
             when {
-                expression { return changedServices == 'all' }
+                expression { return isFullBuild(changedServices) }
             }
             steps {
                 sh './mvnw clean package -DskipTests'
@@ -66,12 +61,11 @@ pipeline {
 
         stage('Test Changed Services') {
             when {
-                expression { return changedServices != 'all' && changedServices != 'none' }
+                expression { return !isFullBuild(changedServices) && !changedServices.isEmpty() }
             }
             steps {
                 script {
-                    def services = changedServices.split(',')
-                    services.each { service ->
+                    changedServices.each { service ->
                         echo "Testing ${service}"
                         sh "./mvnw test -pl :${service}"
                         junit "**/${service}/target/surefire-reports/*.xml"
@@ -83,7 +77,7 @@ pipeline {
 
         stage('Test All') {
             when {
-                expression { return changedServices == 'all' }
+                expression { return isFullBuild(changedServices) }
             }
             steps {
                 sh './mvnw test'
@@ -96,34 +90,30 @@ pipeline {
     post {
         always {
             script {
-                if (changedServices != 'none') {
-                    // Publish test and coverage results
+                if (!changedServices.isEmpty()) {
                     junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
 
-                    def coveragePattern = (changedServices == 'all') ?
+                    def coveragePattern = isFullBuild(changedServices) ?
                         '**/target/site/jacoco/jacoco.xml' :
-                        changedServices.split(',').collect {
+                        changedServices.collect {
                             "**/${it}/target/site/jacoco/jacoco.xml"
                         }.join(',')
 
                     recordCoverage(
-                        tools: [[
-                            parser: 'JACOCO',
-                            pattern: coveragePattern
-                        ]],
+                        tools: [[parser: 'JACOCO', pattern: coveragePattern]],
                         sourceFileResolver: [
                             [projectDir: "$WORKSPACE"]
                         ]
                     )
 
-                    // publishHTML(
-                    //     target: [
-                    //         reportDir: 'target/site/jacoco-aggregate',
-                    //         reportFiles: 'index.html',
-                    //         reportName: 'JaCoCo Coverage Report',
-                    //         keepAll: true
-                    //     ]
-                    // )
+                    publishHTML(
+                        target: [
+                            reportDir: 'target/site/jacoco-aggregate',
+                            reportFiles: 'index.html',
+                            reportName: 'JaCoCo Coverage Report',
+                            keepAll: true
+                        ]
+                    )
                 }
             }
             cleanWs()
@@ -131,12 +121,8 @@ pipeline {
     }
 }
 
-// Helper function to detect changed services
+// Return List<String> of changed services
 def getChangedServices(List changes) {
-    if (!changes || changes.isEmpty()) {
-        return 'none'
-    }
-
     def serviceMap = [
         'spring-petclinic-api-gateway'      : 'spring-petclinic-api-gateway',
         'spring-petclinic-customers-service': 'spring-petclinic-customers-service',
@@ -147,20 +133,24 @@ def getChangedServices(List changes) {
         'spring-petclinic-admin-server'     : 'spring-petclinic-admin-server'
     ]
 
-    def changedServices = []
-
+    def services = []
     changes.each { change ->
         serviceMap.each { dir, service ->
-            if (change.contains(dir) && !changedServices.contains(service)) {
-                changedServices.add(service)
+            if (change.contains(dir) && !services.contains(service)) {
+                services << service
             }
         }
     }
 
-    // Trigger full build if root files are changed
     if (changes.any { it.contains('pom.xml') || it.contains('Jenkinsfile') }) {
-        return 'all'
+        // Special case: full build
+        return ['ALL']
     }
 
-    return changedServices.isEmpty() ? 'none' : changedServices.join(',')
+    return services
+}
+
+// Helper function to detect full build flag
+def isFullBuild(List services) {
+    return services.size() == 1 && services[0] == 'ALL'
 }
