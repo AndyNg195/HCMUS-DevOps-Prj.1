@@ -1,19 +1,34 @@
 pipeline {
     agent any
-    
+
     tools {
         maven 'M3'
         jdk 'jdk17'
     }
-    
+
+    environment {
+        CHANGED_SERVICES = 'none'
+    }
+
     stages {
         stage('Checkout & Detect Changes') {
             steps {
                 checkout scm
                 script {
-                    def changes = sh(script: "git diff --name-only HEAD~1", returnStdout: true).trim()
+                    def changes = ''
+                    for (changeLog in currentBuild.changeSets) {
+                        for (entry in changeLog.items) {
+                            for (file in entry.affectedFiles) {
+                                changes += file.path + '\n'
+                            }
+                        }
+                    }
+
+                    echo "Detected changed files:\n${changes}"
                     env.CHANGED_SERVICES = getChangedServices(changes)
-                    
+
+                    echo "Detected changed services: ${env.CHANGED_SERVICES}"
+
                     if (env.CHANGED_SERVICES == 'none') {
                         currentBuild.result = 'NOT_BUILT'
                         error "No changes detected in any services - skipping build"
@@ -21,7 +36,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build Changed Services') {
             when {
                 expression { return env.CHANGED_SERVICES != 'all' && env.CHANGED_SERVICES != 'none' }
@@ -31,13 +46,12 @@ pipeline {
                     def services = env.CHANGED_SERVICES.split(',')
                     services.each { service ->
                         echo "Building ${service}"
-                        sh "./mvnw clean package -DskipTests -pl $service -am"
-                        // Remove the colon (:) before the service name
+                        sh "./mvnw clean package -DskipTests -pl ${service} -am"
                     }
                 }
             }
         }
-        
+
         stage('Build All') {
             when {
                 expression { return env.CHANGED_SERVICES == 'all' }
@@ -46,7 +60,7 @@ pipeline {
                 sh './mvnw clean package -DskipTests'
             }
         }
-        
+
         stage('Test Changed Services') {
             when {
                 expression { return env.CHANGED_SERVICES != 'all' && env.CHANGED_SERVICES != 'none' }
@@ -63,7 +77,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Test All') {
             when {
                 expression { return env.CHANGED_SERVICES == 'all' }
@@ -75,20 +89,19 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
-            // Only process results if we actually ran builds
             script {
                 if (env.CHANGED_SERVICES != 'none') {
                     junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
-                    
-                    def coveragePattern = (env.CHANGED_SERVICES == 'all') ? 
-                        '**/target/site/jacoco/jacoco.xml' : 
-                        env.CHANGED_SERVICES.split(',').collect { 
-                            "**/${it}/target/site/jacoco/jacoco.xml" 
+
+                    def coveragePattern = (env.CHANGED_SERVICES == 'all') ?
+                        '**/target/site/jacoco/jacoco.xml' :
+                        env.CHANGED_SERVICES.split(',').collect {
+                            "**/${it}/target/site/jacoco/jacoco.xml"
                         }.join(',')
-                    
+
                     recordCoverage(
                         tools: [[
                             parser: 'JACOCO',
@@ -99,7 +112,7 @@ pipeline {
                             [projectDir: "$WORKSPACE", subDir: "spring-petclinic-*"]
                         ]
                     )
-                    
+
                     publishHTML(
                         target: [
                             reportDir: 'target/site/jacoco-aggregate',
@@ -110,27 +123,27 @@ pipeline {
                     )
                 }
             }
-            
+
             cleanWs()
         }
     }
 }
 
 def getChangedServices(String changes) {
-    if (changes.isEmpty()) {
+    if (!changes?.trim()) {
         return 'none'
     }
-    
+
     def serviceMap = [
-        'spring-petclinic-api-gateway': 'spring-petclinic-api-gateway',
-        'spring-petclinic-customers-service': 'spring-petclinic-customers-service',
-        'spring-petclinic-vets-service': 'spring-petclinic-vets-service',
-        'spring-petclinic-visits-service': 'spring-petclinic-visits-service',
-        'spring-petclinic-config-server': 'spring-petclinic-config-server',
+        'spring-petclinic-api-gateway'    : 'spring-petclinic-api-gateway',
+        'spring-petclinic-customers-service' : 'spring-petclinic-customers-service',
+        'spring-petclinic-vets-service'   : 'spring-petclinic-vets-service',
+        'spring-petclinic-visits-service' : 'spring-petclinic-visits-service',
+        'spring-petclinic-config-server'  : 'spring-petclinic-config-server',
         'spring-petclinic-discovery-server': 'spring-petclinic-discovery-server',
-        'spring-petclinic-admin-server': 'spring-petclinic-admin-server'
+        'spring-petclinic-admin-server'   : 'spring-petclinic-admin-server'
     ]
-    
+
     def changedServices = []
     changes.split('\n').each { change ->
         serviceMap.each { dir, service ->
@@ -139,10 +152,10 @@ def getChangedServices(String changes) {
             }
         }
     }
-    
+
     if (changes.contains('pom.xml') || changes.contains('Jenkinsfile')) {
         return 'all'
     }
-    
+
     return changedServices.isEmpty() ? 'none' : changedServices.join(',')
 }
