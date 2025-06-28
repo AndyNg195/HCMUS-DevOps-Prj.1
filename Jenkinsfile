@@ -131,15 +131,16 @@ pipeline {
 
                     recordCoverage(
                         tools: [[parser: 'JACOCO', pattern: coveragePattern]],
-                        
-                        sourceDirectories : srcDirs,
-                        sourceCodeRetention: 'ON_DEMAND',
+
+                        // look for sources in any sub-dir that contains src/main/java
+                        sourceDirectories : [[path: 'glob:**/src/main/java']],
+                        sourceCodeRetention: 'MODIFIED',   // or NEVER | LAST_BUILD | EVERY_BUILD
 
                         qualityGates: [[
-                            metric      : 'LINE',      // what to measure
-                            baseline    : 'PROJECT',   // whole build (aggregate of every XML)
-                            threshold   : 70,          // minimum %
-                            criticality : 'FAILURE'    // mark step *and* build as FAILURE
+                            metric      : 'LINE',
+                            baseline    : 'PROJECT',
+                            threshold   : 70,
+                            criticality : 'FAILURE'        // fail build if < 70 %
                         ]]
                     )
                 }
