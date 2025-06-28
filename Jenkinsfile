@@ -113,9 +113,28 @@ pipeline {
                             "**/${it}/target/site/jacoco/jacoco.xml"
                         }.join(',')
 
+
+                    def srcDirs = isFullBuild(changedServices) ?
+                        // full build: list *all* modules
+                        [
+                            [path: 'spring-petclinic-api-gateway/src/main/java'],
+                            [path: 'spring-petclinic-customers-service/src/main/java'],
+                            [path: 'spring-petclinic-vets-service/src/main/java'],
+                            [path: 'spring-petclinic-visits-service/src/main/java'],
+                            [path: 'spring-petclinic-config-server/src/main/java'],
+                            [path: 'spring-petclinic-discovery-server/src/main/java'],
+                            [path: 'spring-petclinic-admin-server/src/main/java']
+                        ] :
+                        // partial build: only the changed ones
+                        changedServices.collect { [path: "${it}/src/main/java"] }
+
+
                     recordCoverage(
                         tools: [[parser: 'JACOCO', pattern: coveragePattern]],
-                        /** ────── quality-gate ────── **/
+                        
+                        sourceDirectories : srcDirs,
+                        sourceCodeRetention: 'ON_DEMAND',
+
                         qualityGates: [[
                             metric      : 'LINE',      // what to measure
                             baseline    : 'PROJECT',   // whole build (aggregate of every XML)
