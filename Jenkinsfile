@@ -107,11 +107,11 @@ pipeline {
                 if (!changedServices.isEmpty()) {
                     junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
 
-                    // def coveragePattern = isFullBuild(changedServices) ?
-                    //     '**/target/site/jacoco/jacoco.xml' :
-                    //     changedServices.collect {
-                    //         "**/${it}/target/site/jacoco/jacoco.xml"
-                    //     }.join(',')
+                    def coveragePattern = isFullBuild(changedServices) ?
+                        '**/target/site/jacoco/jacoco.xml' :
+                        changedServices.collect {
+                            "**/${it}/target/site/jacoco/jacoco.xml"
+                        }.join(',')
 
                     recordCoverage(
                         tools: [[parser: 'JACOCO', pattern: coveragePattern]],
