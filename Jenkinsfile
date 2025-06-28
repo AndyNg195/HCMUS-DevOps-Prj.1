@@ -117,7 +117,14 @@ pipeline {
                         tools: [[parser: 'JACOCO', pattern: coveragePattern]],
                         sourceFileResolver: [
                             [projectDir: "$WORKSPACE"]
-                        ]
+                        ],
+                        /** ────── quality-gate ────── **/
+                        qualityGates: [[               // one or more gates are allowed
+                            metric: 'LINE',            // LINE, BRANCH, CLASS, etc.
+                            threshold: 70,             // percentage to require
+                            type: 'TOTAL'              // gate applies to the whole build
+                        ]],
+                        failUnhealthy: true            // turn a failed gate into a FAILED build
                     )
                 }
             }
