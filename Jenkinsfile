@@ -107,24 +107,21 @@ pipeline {
                 if (!changedServices.isEmpty()) {
                     junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
 
-                    def coveragePattern = isFullBuild(changedServices) ?
-                        '**/target/site/jacoco/jacoco.xml' :
-                        changedServices.collect {
-                            "**/${it}/target/site/jacoco/jacoco.xml"
-                        }.join(',')
+                    // def coveragePattern = isFullBuild(changedServices) ?
+                    //     '**/target/site/jacoco/jacoco.xml' :
+                    //     changedServices.collect {
+                    //         "**/${it}/target/site/jacoco/jacoco.xml"
+                    //     }.join(',')
 
                     recordCoverage(
                         tools: [[parser: 'JACOCO', pattern: coveragePattern]],
-                        sourceFileResolver: [
-                            [projectDir: "$WORKSPACE"]
-                        ],
                         /** ────── quality-gate ────── **/
-                        qualityGates: [[               // one or more gates are allowed
-                            metric: 'LINE',            // LINE, BRANCH, CLASS, etc.
-                            threshold: 70,             // percentage to require
-                            type: 'TOTAL'              // gate applies to the whole build
-                        ]],
-                        failUnhealthy: true            // turn a failed gate into a FAILED build
+                        qualityGates: [[
+                            metric      : 'LINE',      // what to measure
+                            baseline    : 'PROJECT',   // whole build (aggregate of every XML)
+                            threshold   : 70,          // minimum %
+                            criticality : 'FAILURE'    // mark step *and* build as FAILURE
+                        ]]
                     )
                 }
             }
