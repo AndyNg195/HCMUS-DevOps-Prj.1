@@ -121,7 +121,7 @@ pipeline {
                         sourceCodeRetention: 'MODIFIED',   // or NEVER | LAST_BUILD | EVERY_BUILD
 
                         qualityGates: [[
-                            metric      : 'LINE',
+                            metric      : 'MODULE',
                             baseline    : 'PROJECT',
                             threshold   : 70,
                             criticality : 'FAILURE'        // fail build if < 70 %
