@@ -23,7 +23,7 @@ If everything goes well, you can access the following services at given location
 * Customers, Vets, Visits and GenAI Services - random port, check Eureka Dashboard 
 * Tracing Server (Zipkin) - http://localhost:9411/zipkin/ (we use [openzipkin](https://github.com/openzipkin/zipkin/tree/main/zipkin-server))
 * Admin Server (Spring Boot Admin) - http://localhost:9090
-* Grafana Dashboards - http://localhost:3000
+* Grafana Dashboards - http://localhost:3030
 * Prometheus - http://localhost:9091
 
 You can tell Config Server to use your local Git repository by using `native` Spring profile and setting
@@ -113,8 +113,8 @@ Spring Petclinic integrates a Chatbot that allows you to interact with the appli
 This `spring-petlinic-genai-service` microservice currently supports **OpenAI** (default) or **Azure's OpenAI** as the LLM provider.
 In order to start the microservice, perform the following steps:
 
-1. Decide which provider you want to use. By default, the `spring-ai-openai-spring-boot-starter` dependency is enabled. 
-   You can change it to `spring-ai-azure-openai-spring-boot-starter`in the `pom.xml`.
+1. Decide which provider you want to use. By default, the `spring-ai-starter-model-openai` dependency is enabled. 
+   You can change it to `spring-ai-starter-model-azure-openai`in the `pom.xml`.
 2. Create an OpenAI API key or a Azure OpenAI resource in your Azure Portal.
    Refer to the [OpenAI's quickstart](https://platform.openai.com/docs/quickstart) or [Azure's documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/) for further information on how to obtain these.
    You only need to populate the provider you're using - either openai, or azure-openai.
@@ -184,7 +184,7 @@ A JMeter load testing script is available to stress the application and generate
 ### Using Grafana with Prometheus
 
 * An anonymous access and a Prometheus datasource are setup.
-* A `Spring Petclinic Metrics` Dashboard is available at the URL http://localhost:3000/d/69JXeR0iw/spring-petclinic-metrics.
+* A `Spring Petclinic Metrics` Dashboard is available at the URL http://localhost:3030/d/69JXeR0iw/spring-petclinic-metrics.
 You will find the JSON configuration file here: [docker/grafana/dashboards/grafana-petclinic-dashboard.json]().
 * You may create your own dashboard or import the [Micrometer/SpringBoot dashboard](https://grafana.com/dashboards/4701) via the Import Dashboard menu item.
 The id for this dashboard is `4701`.
